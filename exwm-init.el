@@ -247,6 +247,7 @@
 		   
 ;; ;;; below here is normal emacs setup stuff, above is all for EXWM
 (global-set-key (kbd "C-x C-b") 'helm-buffers-list)
+(global-set-key (kbd "C-c m") 'magit-status)
 (define-key exwm-mode-map (kbd "C-q") 'exwm-input-send-key)
 ;; (def-glob-key (kbd "f1") )
 
