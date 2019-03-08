@@ -41,7 +41,8 @@
 (menu-bar-mode -1) ;; get rid of the extra clutter up top. 
 (tool-bar-mode -1) ;; get rid of the extra clutter up top.
 
-
+;; set helm up
+(setq helm-split-window-in-side-p t)
 
 ;; (setq company-dabbrev-downcase 0)
 ;; (setq company-idle-delay 0)
@@ -112,7 +113,7 @@
 ;;; Functions, Commands, and Setup ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defmacro run-shell-command (command &optional buffer name)
+(defmacro run-shell-command (command &optional name buffer)
   `(start-process-shell-command ,(if name name command) ,buffer ,command))
 
 (defun inc-brightness ()
@@ -135,6 +136,35 @@
 ;;   (interactive)
 ;;   (start-process-shell-command "term" nil "xterm -e setxkbmap no && xmodmap /home/shos/.stumpwm.d/modmaps/eng-no.modmap"))
 
+(defun low-battery-popup ()
+  (let ((battery-percent
+	 (string-to-number
+	  (shell-command-to-string "acpi | grep -o -P '(?<=harging, ).*(?=%)'")))
+	(charging?
+	 (string-equal "Charg\n"
+		       (shell-command-to-string "acpi | grep -o -P '(?<=Battery 0: ).*(?=ing)'"))))
+    (when (and (< battery-percent 20) (not charging?))
+      (with-output-to-temp-buffer "Low Battery Warning"
+	(prin1 "Battery is below 20%, plug in your computer. This message will redisplay every 60 seconds. ")
+      	(prin1 (format "Battery Level:  %d" battery-percent))))))
+
+(defun low-battery-popup-more ()
+  (let ((battery-percent
+	 (string-to-number
+	  (shell-command-to-string "acpi | grep -o -P '(?<=harging, ).*(?=%)'")))
+	(battery-discharging?
+	 (let ((x (shell-command-to-string "acpi | grep -o -P '(?<=Battery 0: ).*(?=ing,)'")))
+	   (if (string-equal "Discharg" x)
+	       t
+	     nil))))
+    (when (and (< battery-percent 20) battery-discharging?)
+      (with-output-to-temp-buffer "Low Battery Warning"
+	(prin1 "Battery is below 20%, plug in your computer. This message will redisplay every 60 seconds. ")
+      	(prin1 (format "Battery Level:  %d" battery-percent))))))
+
+(defvar *battery-popup-timer*)
+(setq *battery-popup-timer* (run-at-time "60 sec" 60 #'low-battery-popup-more))
+
 (defun setup ()
   (start-process-shell-command "term" nil "xterm -e setxkbmap no && xmodmap /home/shos/.emacs.d/modmaps/eng-no-swap-super-altgrn.modmap"))
 
@@ -150,8 +180,8 @@
   (interactive)
   (run-shell-command "pavucontrol"))
 
-(defun tor ()
-  (run-shell-command "./TOR/Browser/start-tor-browser"))
+;; (defun tor ()
+;;   (run-shell-command "./TOR/Browser/start-tor-browser"))
 
 (defun w3m ()
   (interactive)
