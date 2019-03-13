@@ -30,6 +30,8 @@
 (require 'exwm-systemtray)
 (require 'symon)
 (require 'desktop-environment)
+(require 'helm)
+(require 'helm-config)
 ;; (desktop-environment-mode)
 ;; (exwm-config-default)
 (exwm-systemtray-enable)
@@ -42,11 +44,15 @@
 (tool-bar-mode -1) ;; get rid of the extra clutter up top.
 
 ;; set helm up
-(setq helm-split-window-in-side-p t)
+(setq helm-split-window-in-side-p t
+      helm-echo-input-in-header-line t
+      helm-autoresize-mode t)
+
+(helm-mode 1)
 
 ;; (setq company-dabbrev-downcase 0)
 ;; (setq company-idle-delay 0)
-(setq company-idle-delay .5)
+(setq company-idle-delay .2)
 (global-company-mode t)
 
 ;; make windmove wraparound
@@ -96,6 +102,16 @@
 (setq inferior-lisp-program "/usr/bin/sbcl")
 (setq slime-contribs '(slime-fancy))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Functions, Commands, and Setup for Emacs ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defun indent-buffer ()
+  "this indents the whole buffer"
+  (interactive)
+  (save-excursion
+    (indent-region (point-min) (point-max) nil)))
+
 (custom-set-variables
  ;; custom-set-variables was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
@@ -109,12 +125,33 @@
  ;; If there is more than one, they won't work right.
  )
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Functions, Commands, and Setup ;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Functions, Commands, and Setup for EXWM ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defmacro my/case (test control &rest body)
+  "this isnt working right now.... its busting the stack. "
+  (when body
+    `(if (funcall ,test ,control ,(caar body))
+	 (progn ,@(cdar body))
+       (my/case ,test ,control ,@(cdr body)))))
 
 (defmacro run-shell-command (command &optional name buffer)
   `(start-process-shell-command ,(if name name command) ,buffer ,command))
+
+(defun volume-mute ()
+  (interactive)
+  (let* ((amix (split-string 
+		(shell-command-to-string
+		 "amixer set Master toggle | grep -o -P '(?<=%\\] \\[).*(?=\\])'")
+		"\n"))
+	 (status (car amix)))
+    (cond ((string= status "off")
+	   (message "volume muted"))
+	  ((string= status "on")
+	   (message "volume unmuted"))
+	  (t
+	   (message "unknown status, check volume from terminal")))))
 
 (defun inc-brightness ()
   (interactive)
@@ -130,43 +167,27 @@
 	      (string-to-number (shell-command-to-string "xbacklight -get")))))
     (message (format "Brightness: %d" num))))
 
-;; (defun setup ()
-;;   "this function does general setup. anything that needs to be started
-;; or anything, put it in here. current set up actions: sets up the keyboard,"
-;;   (interactive)
-;;   (start-process-shell-command "term" nil "xterm -e setxkbmap no && xmodmap /home/shos/.stumpwm.d/modmaps/eng-no.modmap"))
-
 (defun low-battery-popup ()
-  (let ((battery-percent
-	 (string-to-number
-	  (shell-command-to-string "acpi | grep -o -P '(?<=harging, ).*(?=%)'")))
-	(charging?
-	 (string-equal "Charg\n"
-		       (shell-command-to-string "acpi | grep -o -P '(?<=Battery 0: ).*(?=ing)'"))))
-    (when (and (< battery-percent 20) (not charging?))
+  (let* ((string-list (split-string (shell-command-to-string "acpi") " "))
+	 (status (caddr string-list))
+	 (percentage (string-to-number (car (split-string (cadddr string-list) "%")))))
+    (when (and (< percentage 20) (string-equal status "Discharging,"))
       (with-output-to-temp-buffer "Low Battery Warning"
-	(prin1 "Battery is below 20%, plug in your computer. This message will redisplay every 60 seconds. ")
-      	(prin1 (format "Battery Level:  %d" battery-percent))))))
-
-(defun low-battery-popup-more ()
-  (let ((battery-percent
-	 (string-to-number
-	  (shell-command-to-string "acpi | grep -o -P '(?<=harging, ).*(?=%)'")))
-	(battery-discharging?
-	 (let ((x (shell-command-to-string "acpi | grep -o -P '(?<=Battery 0: ).*(?=ing,)'")))
-	   (if (string-equal "Discharg" x)
-	       t
-	     nil))))
-    (when (and (< battery-percent 20) battery-discharging?)
-      (with-output-to-temp-buffer "Low Battery Warning"
-	(prin1 "Battery is below 20%, plug in your computer. This message will redisplay every 60 seconds. ")
-      	(prin1 (format "Battery Level:  %d" battery-percent))))))
+    	(prin1 "Battery is below 20%, plug in your computer. ")
+	(terpri)
+    	(prin1 "This message will redisplay every 60 seconds. ")
+	(terpri)
+	(prin1 (format "Battery Level:  %d" percentage))
+	(terpri) (terpri)
+	(prin1 "This message is brought to you by low-battery-popup")))
+    (message "Battery Check")))
 
 (defvar *battery-popup-timer*)
-(setq *battery-popup-timer* (run-at-time "60 sec" 60 #'low-battery-popup-more))
+(setq *battery-popup-timer* (run-at-time "60 sec" 60 #'low-battery-popup))
 
 (defun setup ()
-  (start-process-shell-command "term" nil "xterm -e setxkbmap no && xmodmap /home/shos/.emacs.d/modmaps/eng-no-swap-super-altgrn.modmap"))
+  (start-process-shell-command "term" nil "xterm -e setxkbmap no && xmodmap /home/shos/.emacs.d/modmaps/eng-no-swap-super-altgrn.modmap")
+  (start-process-shell-command "nm-applet" nil "nm-applet"))
 
 (defun  firefox ()
   (interactive)
@@ -216,12 +237,20 @@
 	    (unless (or (string-prefix-p "sun-awt-X11-" exwm-instance-name)
 			(string= "gimp" exwm-instance-name))
 	      (exwm-workspace-rename-buffer exwm-class-name))))
+
 (add-hook 'exwm-update-title-hook
 	  (lambda ()
 	    (when (or (not exwm-instance-name)
 		      (string-prefix-p "sun-awt-X11-" exwm-instance-name)
 		      (string= "gimp" exwm-instance-name))
 	      (exwm-workspace-rename-buffer exwm-title))))
+
+(defmacro reset-hook (hook function)
+  "this macro takes an (unquoted) hook variable, sets it to nil,
+and then adds the function to it. "
+  `(progn
+     (setq ,hook nil)
+     (add-hook ',hook ,function)))
 
 (add-hook 'exwm-manage-finish-hook
 	  (lambda ()
@@ -230,13 +259,20 @@
 	      (exwm-input-set-local-simulation-keys nil))
 	    (when (and exwm-class-name
 		       (string= exwm-class-name "Firefox"))
-	      (exwm-input-set-local-simulation-keys (cons '([?\C-q] . [?\C-w]) exwm-input-simulation-keys)
-	       ))
+	      (exwm-input-set-local-simulation-keys
+	       (cons '([?\M-F] . [C-next])
+		     (cons '([?\M-B] . [C-prior])
+			   (cons '([?\C-q] . [?\C-w]) exwm-input-simulation-keys)))))
 	    (when (and exwm-class-name
 		       (string= exwm-class-name "W3M"))
+	      (exwm-input-set-local-simulation-keys nil))
+	    (when (and exwm-class-name
+		       (string= exwm-class-name "qutebrowser"))
 	      (exwm-input-set-local-simulation-keys nil))))
 
 ;; (setq exwm-manage-finish-hook nil)
+
+;; beyond lies the bindings. 
 
 (setq exwm-input-global-keys
       `((,(kbd "s-r") . exwm-reset)
@@ -250,6 +286,7 @@
 	(,(kbd "s-o") . other-window)
 	(,(kbd "M-o") . other-window)
 	;; (,(kbd "s-b") . helm-buffers-list)
+	(,(kbd "s-<f1>") . volume-mute)
 	(,(kbd "s-<f2>") . desktop-environment-volume-decrement)
 	(,(kbd "s-<f3>") . desktop-environment-volume-increment)
 	(,(kbd "s-p") . windmove-up)
@@ -260,12 +297,7 @@
 ;;; THE DIFFERENCES BETWEEN EXWM-INPUT-SET-KEY AND EXWM-INPUT-GLOBAL-KEYS:
 ;;; exwm-input-global-keys are available in both char and line mode, while
 ;;; exwm-input-set-key definitions are only available in line mode. 
-
-;; (exwm-input-set-key (kbd "s-f") 'windmove-right)
-;; (exwm-input-set-key (kbd "s-b") 'windmove-left)
-;; (exwm-input-set-key (kbd "s-n") 'windmove-down)
-;; (exwm-input-set-key (kbd "s-p") 'windmove-up)
-
+(exwm-input-set-key (kbd "<f1>") 'volume-mute)
 (exwm-input-set-key (kbd "<f2>") 'desktop-environment-volume-decrement)
 (exwm-input-set-key (kbd "<f3>") 'desktop-environment-volume-increment)
 (exwm-input-set-key (kbd "<f11>") 'dec-brightness)
@@ -273,27 +305,15 @@
 
 ;; (require 'exwm-commands)
 
-;; ;; (define-key 'exwm-input-send-next-key)
-		   
-;; ;;; below here is normal emacs setup stuff, above is all for EXWM
-(global-set-key (kbd "C-x C-b") 'helm-buffers-list)
+;; here lies regular keys
+(global-set-key (kbd "C-x b") 'helm-buffers-list)
+(global-set-key (kbd "C-x C-f") 'helm-find-files)
+(global-set-key (kbd "s-x") 'helm-M-x)
 (global-set-key (kbd "C-c m") 'magit-status)
 (define-key exwm-mode-map (kbd "C-q") 'exwm-input-send-key)
-;; (def-glob-key (kbd "f1") )
+(global-set-key (kbd "C-<prior>") 'send-raw)
 
-;; (global-set-key (kbd "s-b") 'helm-buffers-list)
-
-;; (global-set-key (kbd "<f2>")  'desktop-environment-volume-decrement)
-;; (global-set-key (kbd "<f3>") 'desktop-environment-volume-increment)
-;; (global-set-key (kbd "M-<f2>")  'desktop-environment-volume-decrement)
-;; (global-set-key (kbd "M-<f3>") 'desktop-environment-volume-increment)
-;; (global-set-key (kbd "<f11>") 'dec-brightness)
-;; (global-set-key (kbd "<f12>") 'inc-brightness)
-;; (define-key exwm-mode-map (kbd "C-<f11>") 'dec-brightness)
-;;(def-glob-key (kbd "M-<f11>") 'dec-brightness)
-;;(def-glob-key (kbd "M-<f12>") 'inc-brightness)
-
-(define-key exwm-mode-map (kbd "M-<f12>") 'inc-brightness)
+;; send-raw-key is exwm-input-send-next-key
 
 (setq exwm-input-simulation-keys
       '(([?\C-b] . [left])
@@ -314,7 +334,7 @@
         ([?\C-y] . [?\C-v])
         ;; search
         ([?\C-s] . [?\C-f])))
-      
+
 
 ;; ;; (define-key exwm-mode-map (kbd "M-o") 'other-window)
 
