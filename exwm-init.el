@@ -32,6 +32,14 @@
 (require 'desktop-environment)
 (require 'helm)
 (require 'helm-config)
+;; set up latex stuff, auctex is called tex, for some reason. 
+(require 'tex)
+(setq TeX-auto-save t)
+(setq TeX-parse-self t)
+(setq-default TeX-master nil)
+;;(setq TeX-)
+;; end latex setup.
+(require 'org)
 ;; (desktop-environment-mode)
 ;; (exwm-config-default)
 (exwm-systemtray-enable)
@@ -112,6 +120,42 @@
   (save-excursion
     (indent-region (point-min) (point-max) nil)))
 
+(defvar *capitalize-previous-word-insert-space-control-characters*
+;;  '(#\, #\. #\? #\! #\@ #\% #\$ #\')
+  )
+
+(defun writing/capitalize-previous-word ()
+  "This capitalizes the previous word, similar to capitalize-word but 
+prepending a 'M-b' to it. "
+  (interactive)
+  (save-excursion
+    (backward-word)
+    (capitalize-word 1)))
+
+(defun writing/capitalize-sentence ()
+  (interactive)
+  (save-excursion
+    (while (not (char-equal (char-after) ?.))
+      (backward-char))
+    (forward-char)
+    (if (char-equal (char-after) ?\s)
+	(forward-char)
+      (insert " "))
+    (capitalize-word 1)))
+
+;; set up org mode
+;; enable line wrapping for org mode documents only
+(defun smart-switch-line-wraps-for-org-mode ()
+  (unless (string= (buffer-name) "web-bookmarks.org")
+    (visual-line-mode)))
+
+(add-hook 'org-mode-hook #'smart-switch-line-wraps-for-org-mode)
+
+;; make it so that ^ and _ dont do super/sub scripting, instead requiring
+;; ^{thing} or _{thing}
+(setq org-use-sub-superscripts '{})
+;; End org mode setup
+
 (custom-set-variables
  ;; custom-set-variables was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
@@ -129,104 +173,16 @@
 ;;; Functions, Commands, and Setup for EXWM ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defmacro my/case (test control &rest body)
-  "this isnt working right now.... its busting the stack. "
-  (when body
-    `(if (funcall ,test ,control ,(caar body))
-	 (progn ,@(cdar body))
-       (my/case ,test ,control ,@(cdr body)))))
+;; (load "~/.emacs.d/exwm-test.el")
 
-(defmacro run-shell-command (command &optional name buffer)
-  `(start-process-shell-command ,(if name name command) ,buffer ,command))
+(load "~/.emacs.d/exwm-macros.el")
 
-(defun volume-mute ()
-  (interactive)
-  (let* ((amix (split-string 
-		(shell-command-to-string
-		 "amixer set Master toggle | grep -o -P '(?<=%\\] \\[).*(?=\\])'")
-		"\n"))
-	 (status (car amix)))
-    (cond ((string= status "off")
-	   (message "volume muted"))
-	  ((string= status "on")
-	   (message "volume unmuted"))
-	  (t
-	   (message "unknown status, check volume from terminal")))))
-
-(defun inc-brightness ()
-  (interactive)
-  (run-shell-command "xbacklight -inc 5")
-  (let ((num (round
-	      (string-to-number (shell-command-to-string "xbacklight -get")))))
-    (message (format "Brightness: %d" num))))
-
-(defun dec-brightness ()
-  (interactive)
-  (run-shell-command "xbacklight -dec 5")
-  (let ((num (round
-	      (string-to-number (shell-command-to-string "xbacklight -get")))))
-    (message (format "Brightness: %d" num))))
-
-(defun low-battery-popup ()
-  (let* ((string-list (split-string (shell-command-to-string "acpi") " "))
-	 (status (caddr string-list))
-	 (percentage (string-to-number (car (split-string (cadddr string-list) "%")))))
-    (when (and (< percentage 20) (string-equal status "Discharging,"))
-      (with-output-to-temp-buffer "Low Battery Warning"
-    	(prin1 "Battery is below 20%, plug in your computer. ")
-	(terpri)
-    	(prin1 "This message will redisplay every 60 seconds. ")
-	(terpri)
-	(prin1 (format "Battery Level:  %d" percentage))
-	(terpri) (terpri)
-	(prin1 "This message is brought to you by low-battery-popup")))
-    (message "Battery Check")))
+(load "~/.emacs.d/exwm-commands.el")
 
 (defvar *battery-popup-timer*)
-(setq *battery-popup-timer* (run-at-time "60 sec" 60 #'low-battery-popup))
-
-(defun setup ()
-  (start-process-shell-command "term" nil "xterm -e setxkbmap no && xmodmap /home/shos/.emacs.d/modmaps/eng-no-swap-super-altgrn.modmap")
-  (start-process-shell-command "nm-applet" nil "nm-applet"))
-
-(defun  firefox ()
-  (interactive)
-  (start-process-shell-command "firefox" nil "firejail firefox -P EXWM"))
-
-(defun newsboat ()
-  (interactive)
-  (run-shell-command "xterm -class Newsboat -e newsboat"))
-
-(defun pulse-audio ()
-  (interactive)
-  (run-shell-command "pavucontrol"))
-
-;; (defun tor ()
-;;   (run-shell-command "./TOR/Browser/start-tor-browser"))
-
-(defun w3m ()
-  (interactive)
-  (run-shell-command "xterm -class W3M -e w3m duckduckgo.com"))
-
-(defun mail ()
-  (interactive)
-  (run-shell-command "thunderbird"))
-
-(defun riot ()
-  (interactive)
-  (run-shell-command "riot-desktop"))
-
-(defun bitwarden ()
-  (interactive)
-  (run-shell-command "bitwarden-bin"))
-
-(defun etcher ()
-  (interactive)
-  (run-shell-command "/opt/Etcher/etcher-electron"))
-
-(defun tmux ()
-  (interactive)
-  (run-shell-command "xterm -class tmux -e tmux new-session -A -s Main"))
+;; set up a timer, which checks our battery and throws up a buffer with a
+;; warning if its below 20% and discharging
+(setq *battery-popup-timer* (run-at-time "60 sec" 180 #'low-battery-popup))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; End Functions, Commands, and Setup ;;;
@@ -245,13 +201,6 @@
 		      (string= "gimp" exwm-instance-name))
 	      (exwm-workspace-rename-buffer exwm-title))))
 
-(defmacro reset-hook (hook function)
-  "this macro takes an (unquoted) hook variable, sets it to nil,
-and then adds the function to it. "
-  `(progn
-     (setq ,hook nil)
-     (add-hook ',hook ,function)))
-
 (add-hook 'exwm-manage-finish-hook
 	  (lambda ()
 	    (when (and exwm-class-name
@@ -260,9 +209,10 @@ and then adds the function to it. "
 	    (when (and exwm-class-name
 		       (string= exwm-class-name "Firefox"))
 	      (exwm-input-set-local-simulation-keys
-	       (cons '([?\M-F] . [C-next])
-		     (cons '([?\M-B] . [C-prior])
-			   (cons '([?\C-q] . [?\C-w]) exwm-input-simulation-keys)))))
+	       (append '(([?\M-F] . [C-next])
+			 ([?\M-B] . [C-prior])
+			 ([?\C-o] . [?\C-w]))
+		       exwm-input-simulation-keys)))
 	    (when (and exwm-class-name
 		       (string= exwm-class-name "W3M"))
 	      (exwm-input-set-local-simulation-keys nil))
@@ -283,6 +233,9 @@ and then adds the function to it. "
 	(,(kbd "s-;") . (lambda (command)
 			  (interactive (list (read-shell-command "$ ")))
 			  (start-process-shell-command command nil command)))
+	(,(kbd "s-ø") . (lambda (command)
+			  (interactive (list (read-shell-command "$ ")))
+			  (start-process-shell-command command nil command)))
 	(,(kbd "s-o") . other-window)
 	(,(kbd "M-o") . other-window)
 	;; (,(kbd "s-b") . helm-buffers-list)
@@ -293,6 +246,7 @@ and then adds the function to it. "
 	(,(kbd "s-n") . windmove-down)
 	(,(kbd "s-b") . windmove-left)
 	(,(kbd "s-f") . windmove-right)))
+
 
 ;;; THE DIFFERENCES BETWEEN EXWM-INPUT-SET-KEY AND EXWM-INPUT-GLOBAL-KEYS:
 ;;; exwm-input-global-keys are available in both char and line mode, while
@@ -311,7 +265,8 @@ and then adds the function to it. "
 (global-set-key (kbd "s-x") 'helm-M-x)
 (global-set-key (kbd "C-c m") 'magit-status)
 (define-key exwm-mode-map (kbd "C-q") 'exwm-input-send-key)
-(global-set-key (kbd "C-<prior>") 'send-raw)
+(define-key org-mode-map (kbd "C-c u") 'writing/capitalize-sentence)
+;;(define-key org-mode-map (kbd "C-c s") 'capitalize-previous-word)
 
 ;; send-raw-key is exwm-input-send-next-key
 
