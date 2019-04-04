@@ -15,6 +15,8 @@
   (add-to-list 'package-archives '("gnu" . "httl://elpa.gnu.org/packages/")))
 (unless (assoc-default "melpa-stable" package-archives)
   (add-to-list 'package-archives '("melpa-stable" . "http://stable.melpa.org/packages/")))
+(unless (assoc-default "melpa" package-archives)
+  (add-to-list 'package-archives '("melpa" . "http://melpa.org/packages/")))
 
 (package-initialize)
 
@@ -42,6 +44,7 @@
 (require 'org)
 ;; (desktop-environment-mode)
 ;; (exwm-config-default)
+
 (exwm-systemtray-enable)
 (setq exwm-systemtray-height 24)
 (window-divider-mode 1)
@@ -73,6 +76,14 @@
 ;; 			    ;; (background-color . "black")
 ;; 			    ))
 
+;;; set up hungry delete. 
+(unless (fboundp 'hungry-delete-mode)
+  (package-install 'hungry-delete))
+
+(require 'hungry-delete)
+(global-hungry-delete-mode)
+;;; end hungry delete setup. 
+
 ;; load themes, set up colors. 
 (load-theme 'sanityinc-tomorrow-bright)
 ;; set up modeline
@@ -83,8 +94,11 @@
 ;; set unused modelines
 (set-face-background 'mode-line-inactive "dim grey")
 (set-face-foreground 'mode-line-inactive "black")
+(setq mode-line-format '("%e" mode-line-front-space mode-line-mule-info mode-line-client mode-line-modified mode-line-remote mode-line-frame-identification mode-line-buffer-identification " " mode-line-position (vc-mode vc-mode) "" mode-line-modes mode-line-misc-info mode-line-end-spaces))
 
 ;;; set up lisp ;;;
+
+;; set up paredit
 (defun paredit-enable-define ()
   (enable-paredit-mode)
   (define-key paredit-mode-map (kbd "M-)") 'paredit-forward-slurp-sexp)
@@ -94,7 +108,19 @@
 (add-hook 'emacs-lisp-mode-hook #'paredit-enable-define)
 (add-hook 'lisp-mode-hook #'paredit-enable-define)
 
-;;; rainbow delimiters for programming mode and slime repl. 
+(setq backward-delete-char-untabify-method 'all) ; this makes paredit work kinda like hungry-delete.
+
+;; end paredit
+;; set up parinfer (for testing, for now)
+(use-package parinfer
+  :ensure t
+  :bind (("C-," . parinfer-toggle-mode))
+  :init
+  (progn
+    (setq parinfer-extensions
+	  '(defaults pretty-parens paredit))))
+
+;;; rainbow delimiters for programming mode and slime repl.
 
 (require 'rainbow-delimiters)
 (require 'cl-lib)
@@ -122,7 +148,7 @@
 
 (defvar *capitalize-previous-word-insert-space-control-characters*
 ;;  '(#\, #\. #\? #\! #\@ #\% #\$ #\')
-  )
+  '(?\, ?\. ?\? ?\! ?\@ ?\% ?\$ ?\'))
 
 (defun writing/capitalize-previous-word ()
   "This capitalizes the previous word, similar to capitalize-word but 
@@ -209,9 +235,11 @@ prepending a 'M-b' to it. "
 	    (when (and exwm-class-name
 		       (string= exwm-class-name "Firefox"))
 	      (exwm-input-set-local-simulation-keys
-	       (append '(([?\M-F] . [C-next])
-			 ([?\M-B] . [C-prior])
-			 ([?\C-o] . [?\C-w]))
+	       (append `(;;(,(kbd "C-x u") . ,(kbd "C-S-t")) ;; find a way to bind C-x u to C-T
+			 ([?\M-F] . [C-next]) ([?\M-B] . [C-prior])
+			 ([?\C-o] . [?\C-w])
+			 (,(kbd "C-M-b") . ,(kbd "C-["))
+			 (,(kbd "C-M-f") . ,(kbd "C-]")))
 		       exwm-input-simulation-keys)))
 	    (when (and exwm-class-name
 		       (string= exwm-class-name "W3M"))
@@ -242,6 +270,7 @@ prepending a 'M-b' to it. "
 	(,(kbd "s-<f1>") . volume-mute)
 	(,(kbd "s-<f2>") . desktop-environment-volume-decrement)
 	(,(kbd "s-<f3>") . desktop-environment-volume-increment)
+	;; (,(kbd "s-k") . )
 	(,(kbd "s-p") . windmove-up)
 	(,(kbd "s-n") . windmove-down)
 	(,(kbd "s-b") . windmove-left)
@@ -266,6 +295,8 @@ prepending a 'M-b' to it. "
 (global-set-key (kbd "C-c m") 'magit-status)
 (define-key exwm-mode-map (kbd "C-q") 'exwm-input-send-key)
 (define-key org-mode-map (kbd "C-c u") 'writing/capitalize-sentence)
+(define-key org-mode-map (kbd "C-M-f") 'org-next-visible-heading)
+(define-key org-mode-map (kbd "C-M-b") 'org-previous-visible-heading)
 ;;(define-key org-mode-map (kbd "C-c s") 'capitalize-previous-word)
 
 ;; send-raw-key is exwm-input-send-next-key
@@ -282,7 +313,7 @@ prepending a 'M-b' to it. "
         ([?\M-v] . [prior])
         ([?\C-v] . [next])
         ([?\C-d] . [delete])
-        ([?\C-k] . [S-end delete])
+        ([?\C-k] . [S-end C-c delete])
         ;; cut/paste.
         ([?\C-w] . [?\C-x])
         ([?\M-w] . [?\C-c])

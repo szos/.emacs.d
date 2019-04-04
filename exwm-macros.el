@@ -10,6 +10,11 @@
      (interactive)
      ,@body))
 
+(defmacro rlambda (args-list &rest body)
+  `(cl-labels ((this ,args-list
+		     ,@body))
+     #'this))
+
 (defmacro my/case (test control &rest body)
   "this macro takes a test ;;(an equality function, like string-equal), a control
 ;;(somthing to test against) and then a list of cases of the form:
@@ -29,83 +34,7 @@ succeeding case within a progn. heres an example "
 	 (progn ,@(cdar body))
        (my/case ,test ,control ,@(cdr body)))))
 
-(defun make-bookmark-firefox ()
-  ;; this function is working. or at least, it was when i tested it just now...
-  "this macro should do the following, in order:
-1. check if the current buffer is firefox, chrome, brave, icecat, etc. point is 
-it must be a browser.
-2. select the url
-3. copy the url
-4. prompt the user for what category to add the url to. if there are 
-sub-categories, prompt for those as well. These categories are the org headers 
-5. create a new entry in the unordered list that comprises each category.
-6. paste the url into that entry.
-7. save the org file. "
-  (interactive)
-  (when (string= (car (split-string (buffer-name) "<")) "Firefox") ;; when were in firefox
-    (exwm-input-send-single-key "C-l") ;; select the url
-    (exwm-input-send-single-key "C-c") ;; copy the url
-    (find-file "~/.emacs.d/web-bookmarks.org")
-    (let (org-headings
-	  org-heading-names)
-      (org-map-entries
-       (lambda ()
-	 (push (org-heading-components) org-headings)))
-      (setq org-heading-names (mapcar (lambda (x)
-					(car (cddddr x)))
-				      org-headings))
-      (let ((choice (completing-read "Select org heading: "
-				     org-heading-names)))
-	(message "%S" choice)
-	(goto-char (point-min))
-	(outline-show-all)
-	(re-search-forward choice)
-	(next-line)
-	(move-end-of-line 1)
-	(org-meta-return)
-	(yank)
-	(save-buffer)
-	(goto-char (point-min))
-	;;(kill-buffer "web-bookmarks.org")
-	))))
-
-(defun make-bookmark-firefox ()
-  (interactive)
-  (when (string= (car (split-string (buffer-name) "<")) "Firefox") ;; when were in firefox
-    (exwm-input-send-single-key "C-l") ;; select the url
-    (exwm-input-send-single-key "C-c") ;; copy the url
-    (let ((prev-buffer (current-buffer))
-	  (org-headings nil)
-	  (org-heading-names nil)
-	  (close-buffer? nil))
-      (if (bufferp (get-buffer "web-bookmarks.org")) ;; if the buffer exists
-	  (switch-to-buffer "web-bookmarks.org") ;; go to it
-	(progn ;; otherwise, 
-	  (setq close-buffer? t) ;; mark that we want to close it when were done. 
-	  (find-file "~/.emacs.d/web-bookmarks.org"))) ;; then find the file.
-      (org-map-entries
-       (lambda ()
-	 (push (org-heading-components) org-headings)))
-      (setq org-heading-names (mapcar (lambda (x)
-					(concat "* " (car (cddddr x))))
-				      org-headings))
-      (let ((choice (completing-read "Select org heading: "
-				     org-heading-names)))
-	(message "%S" choice)
-	(goto-char (point-min))
-	(outline-show-all)
-	(re-search-forward choice)
-	(next-line)
-	(move-end-of-line 1)
-	(org-meta-return)
-	(yank)
-	(save-buffer)
-	(goto-char (point-min))
-	(if close-buffer?
-	    (kill-buffer "web-bookmarks.org")
-	  (switch-to-buffer prev-buffer))))))
-
-(defuni my/bname ()
+(defuni my/bname () 
   (message (buffer-name)))
 
 (defmacro run-shell-command (command &optional name buffer)

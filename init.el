@@ -18,9 +18,9 @@
 (unless (assoc-default "org" package-archives)
   (add-to-list 'package-archives '("org" . "https://orgmode.org/elpa/") t))
 (unless (assoc-default "gnu" package-archives)
-  (add-to-list 'package-archives '("gnu" . "httl://elpa.gnu.org/packages/")))
+  (add-to-list 'package-archives '("gnu" . "https://elpa.gnu.org/packages/") t))
 (unless (assoc-default "melpa-stable" package-archives)
-  (add-to-list 'package-archives '("melpa-stable" . "http://stable.melpa.org/packages")))
+  (add-to-list 'package-archives '("melpa-stable" . "https://stable.melpa.org/packages") t))
 
 ;;; set up use-package
 (unless (package-installed-p 'use-package)
@@ -153,6 +153,21 @@
 ;;       (switch-to-scheme t)
 ;;       (message "\"%s\" compiled and loaded." file-name))))
 
+;;; writing stuff
+
+(defun writing/capitalize-sentence ()
+  (interactive)
+  (save-excursion
+    (while (not (char-equal (char-after) ?.))
+      (backward-char))
+    (forward-char)
+    (if (char-equal (char-after) ?\s)
+	(forward-char)
+      (insert " "))
+    (capitalize-word 1)))
+
+;;; end writing stuff
+
 ;;; Bind Keys:
 (global-set-key (kbd "C-x C-f") 'helm-find-files)
 (global-set-key (kbd "M-o") 'other-window)
@@ -161,6 +176,8 @@
 (global-set-key (kbd "M-)") 'paredit-forward-slurp-sexp)
 (global-set-key (kbd "M-(") 'paredit-backward-slurp-sexp)
 (global-set-key (kbd "M-SPC") 'god-mode)
+
+(define-key org-mode-map (kbd "C-c u") 'writing/capitalize-sentence)
 ;; (global-set-key (kbd "M-k") 'paredit-kill-region)
 
 
@@ -177,7 +194,7 @@
  '(custom-safe-themes
    (quote
     ("1b8d67b43ff1723960eb5e0cba512a2c7a2ad544ddb2533a90101fd1852b426e" default)))
- '(package-selected-packages (quote (paredit helm exwm))))
+ '(package-selected-packages (quote (htmlize paredit helm exwm))))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
